@@ -1,0 +1,846 @@
+{
+  "name": "Gmail Labels → Sheets & Drive",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX",
+            "Label_8078516865586220558"
+          ],
+          "q": "has:attachment",
+          "readStatus": "both"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "dc3ee9a3-7091-48dc-a062-c9be647c4478",
+      "name": "Get Labeled Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        176
+      ],
+      "webhookId": "aac21977-0e6e-4d69-8545-7c1b2e099cbb",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6rvj4VNcgESqqIVn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const LABEL_NAMES = {\n  Label_1: 'Junk',\n  Label_2: 'Unwanted',\n  Label_3: '[Notion]',\n  Label_4: 'Job Alerts',\n  Label_5: 'Learning Reminders',\n  Label_6: 'Online course',\n  Label_7: 'Assessment invitation notifications',\n  Label_8: 'Application Status',\n  Label_6961433786476260004: 'Primary',\n  Label_8078516865586220558: 'Receipts',\n};\nconst SYSTEM = new Set(['INBOX', 'SENT', 'DRAFT', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'CHAT', 'YELLOW_STAR']);\nconst sanitize = (s) => String(s || '').replace(/[\\/:*?\"<>|']/g, '_').replace(/\\s+/g, ' ').trim();\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const addr = (j.from && j.from.value && j.from.value[0]) || {};\n  const email = String(addr.address || '').trim();\n  const name = String(addr.name || '').trim() || (email.split('@')[0] || 'Unknown');\n  const ids = Array.isArray(j.labelIds) ? j.labelIds : [];\n  const userLabelId = ids.find((id) => !SYSTEM.has(id) && !String(id).startsWith('CATEGORY_'));\n  const label = userLabelId ? (LABEL_NAMES[userLabelId] || userLabelId) : 'INBOX';\n  const dateObj = j.date ? new Date(j.date) : new Date();\n  const receivedDate = dateObj.toISOString().slice(0, 10);\n  const binary = item.binary || {};\n  const attachmentCount = Object.keys(binary).length;\n  out.push({\n    json: {\n      senderName: name,\n      senderEmail: email,\n      subject: String(j.subject || '').trim(),\n      receivedDate,\n      receivedAt: dateObj.toISOString(),\n      label,\n      gmailId: j.id,\n      messageId: String(j.messageId || '').replace(/[<>]/g, '').trim(),\n      attachmentCount,\n      labelFolder: sanitize(label),\n      dateFolder: receivedDate,\n      senderFolder: sanitize(name),\n    },\n    binary,\n  });\n}\nreturn out;"
+      },
+      "id": "05b722af-01ed-479b-b350-06bbe5240bd2",
+      "name": "Extract Sender Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1YkG6N8W_Cou4C6iEB_4k1BJbBeg288TwxNMOwY-2wYo",
+          "mode": "list",
+          "cachedResultName": "Sender Information",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YkG6N8W_Cou4C6iEB_4k1BJbBeg288TwxNMOwY-2wYo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YkG6N8W_Cou4C6iEB_4k1BJbBeg288TwxNMOwY-2wYo/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sender Name": "={{ String($('Get Labeled Emails').item.json.headers.from || '').replace(/^From:\\s*/i, '').replace(/<[^>]*>/g, '').replace(/\"/g, '').trim() }}",
+            "Sender Email": "={{ (String($('Get Labeled Emails').item.json.headers.from || '').match(/<([^>]+)>/) || [, String($('Get Labeled Emails').item.json.headers.from || '').replace(/^From:\\s*/i, '')])[1].trim() }}",
+            "Subject": "={{ String($('Get Labeled Emails').item.json.headers.subject || '').replace(/^Subject:\\s*/i, '').trim() }}",
+            "Date Received": "={{ $json.receivedDate }}",
+            "Label": "={{ $json.label }}",
+            "Attachments": "={{ $json.attachmentCount }}",
+            "Message ID": "={{ String($('Get Labeled Emails').item.json.headers['message-id'] || '').replace(/^Message-ID:\\s*/i, '').replace(/[<>]/g, '').trim() }}"
+          },
+          "matchingColumns": [
+            "Message ID"
+          ],
+          "schema": [
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Sender Name",
+              "displayName": "Sender Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Sender Email",
+              "displayName": "Sender Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date Received",
+              "displayName": "Date Received",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Label",
+              "displayName": "Label",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Attachments",
+              "displayName": "Attachments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3b7e4730-9b27-4ee9-8c1e-89967d5a6a20",
+      "name": "Add Row to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "UFjamelUBqmdSySV",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Get Labeled Emails').item.json.id }}"
+      },
+      "id": "c2af75ed-8f0c-405c-acf2-146f4cebb707",
+      "name": "Mark as Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "webhookId": "b7e1874c-0e1d-4366-9bdf-f57999dee4ab",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6rvj4VNcgESqqIVn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "has-att",
+              "leftValue": "={{ $json.attachmentCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e9fd9cac-73fc-45f9-8514-0996a811e837",
+      "name": "Has Attachments?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $('Current Email').first().json.senderFolder }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Find Date Folder').first().json.id || $('Create Date Folder').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "706ba1f8-4c2b-4e78-b223-bf1f846acee7",
+      "name": "Create Sender Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3136,
+        512
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Folder to upload into: resolved sender folder from the previous node.\nconst folderId = $input.first().json.id;\n// Attachments live on the loop's current email item.\nconst binary = $('Current Email').first().binary || {};\nconst results = [];\nfor (const key of Object.keys(binary)) {\n  const b = binary[key];\n  results.push({\n    json: { fileName: b.fileName || 'attachment', folderId },\n    binary: { data: b },\n  });\n}\nreturn results;"
+      },
+      "id": "a708bd0f-6aeb-403c-b6cc-25bcaeed746f",
+      "name": "Split Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.folderId }}"
+        },
+        "options": {}
+      },
+      "id": "1ff0cd2e-8d19-47e6-b1bb-fbfdc0f2f4fc",
+      "name": "Upload Attachment",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3584,
+        640
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "5126e47d-bad9-4878-a035-155c2c5b9708",
+      "name": "Loop Emails",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        896,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Passthrough so downstream nodes have a single, unambiguous reference\n// to the email being processed in this loop iteration (json + binary).\nreturn $input.all();"
+      },
+      "id": "05a261b8-c477-4f6d-8660-b3a7312052d8",
+      "name": "Current Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"name = '\" + $json.labelFolder + \"' and 'root' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "limit": 1,
+        "filter": {},
+        "options": {}
+      },
+      "id": "31843b0a-1f06-471e-b33a-66842411d57d",
+      "name": "Find Label Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1344,
+        640
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "no-label-folder",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1deaba9-c9e2-4da2-8e0c-8ea0bcc849e9",
+      "name": "Label Folder Missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $('Current Email').first().json.labelFolder }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "39d5f738-1e6e-4725-92c3-54fda8d134a7",
+      "name": "Create Label Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1792,
+        512
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"name = '\" + $('Current Email').first().json.dateFolder + \"' and '\" + $json.id + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "limit": 1,
+        "filter": {},
+        "options": {}
+      },
+      "id": "83128b8f-6bbc-4057-9234-d84a4ede9624",
+      "name": "Find Date Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2016,
+        640
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "no-date-folder",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "f5c0d000-c475-403c-9de1-6590eff9dfc2",
+      "name": "Date Folder Missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2240,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $('Current Email').first().json.dateFolder }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Find Label Folder').first().json.id || $('Create Label Folder').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "30963a62-22e2-4ae0-80d4-e1269fec98ab",
+      "name": "Create Date Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2464,
+        512
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"name = '\" + $('Current Email').first().json.senderFolder + \"' and '\" + $json.id + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}",
+        "limit": 1,
+        "filter": {},
+        "options": {}
+      },
+      "id": "d70c3889-e396-4ba4-83c2-fc6ce0d8ae7b",
+      "name": "Find Sender Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        640
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WTOMz2YQbAzN25O0",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "no-sender-folder",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d67091ea-7bf4-4c5e-92a0-ce704999ec6e",
+      "name": "Sender Folder Missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        640
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Labeled Emails": {
+      "main": [
+        [
+          {
+            "node": "Extract Sender Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Sender Info": {
+      "main": [
+        [
+          {
+            "node": "Add Row to Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Attachments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Row to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attachments": {
+      "main": [
+        [
+          {
+            "node": "Upload Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Loop Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Emails": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Current Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Current Email": {
+      "main": [
+        [
+          {
+            "node": "Find Label Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Label Folder": {
+      "main": [
+        [
+          {
+            "node": "Label Folder Missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label Folder Missing?": {
+      "main": [
+        [
+          {
+            "node": "Create Label Folder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Date Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Label Folder": {
+      "main": [
+        [
+          {
+            "node": "Find Date Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Date Folder": {
+      "main": [
+        [
+          {
+            "node": "Date Folder Missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Folder Missing?": {
+      "main": [
+        [
+          {
+            "node": "Create Date Folder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Sender Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Date Folder": {
+      "main": [
+        [
+          {
+            "node": "Find Sender Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Sender Folder": {
+      "main": [
+        [
+          {
+            "node": "Sender Folder Missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender Folder Missing?": {
+      "main": [
+        [
+          {
+            "node": "Create Sender Folder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Sender Folder": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Attachment": {
+      "main": [
+        [
+          {
+            "node": "Loop Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "5fe0e5b5-65d7-435a-8efb-0077220a2706",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "1519d46378d0db162e64ec63f2598f851a6d24871177e1ffc223fc197747ae60"
+  },
+  "nodeGroups": [
+    {
+      "id": "57d32416-9174-49a4-bb60-e9642ccb65e6",
+      "name": "Ingest & Parse",
+      "nodeIds": [
+        "dc3ee9a3-7091-48dc-a062-c9be647c4478",
+        "05b722af-01ed-479b-b350-06bbe5240bd2"
+      ],
+      "description": "Fetch labeled emails on a schedule and parse sender, subject, label and date."
+    },
+    {
+      "id": "b11b3051-a176-47f6-9bf6-3bf8f77864e2",
+      "name": "Record to Sheet",
+      "nodeIds": [
+        "3b7e4730-9b27-4ee9-8c1e-89967d5a6a20",
+        "c2af75ed-8f0c-405c-acf2-146f4cebb707"
+      ],
+      "description": "Upsert sender info into Google Sheets and mark the email as read."
+    },
+    {
+      "id": "ee3faa3e-66e5-42a7-8644-2da7aef8bb52",
+      "name": "Store Attachments",
+      "nodeIds": [
+        "e9fd9cac-73fc-45f9-8514-0996a811e837",
+        "5126e47d-bad9-4878-a035-155c2c5b9708",
+        "05a261b8-c477-4f6d-8660-b3a7312052d8",
+        "31843b0a-1f06-471e-b33a-66842411d57d",
+        "a1deaba9-c9e2-4da2-8e0c-8ea0bcc849e9",
+        "39d5f738-1e6e-4725-92c3-54fda8d134a7",
+        "83128b8f-6bbc-4057-9234-d84a4ede9624",
+        "f5c0d000-c475-403c-9de1-6590eff9dfc2",
+        "30963a62-22e2-4ae0-80d4-e1269fec98ab",
+        "d70c3889-e396-4ba4-83c2-fc6ce0d8ae7b",
+        "d67091ea-7bf4-4c5e-92a0-ce704999ec6e",
+        "706ba1f8-4c2b-4e78-b223-bf1f846acee7",
+        "a708bd0f-6aeb-403c-b6cc-25bcaeed746f",
+        "1ff0cd2e-8d19-47e6-b1bb-fbfdc0f2f4fc"
+      ],
+      "description": "Resolve or create the nested label / date / sender folder path, then upload attachments into the sender folder."
+    }
+  ],
+  "id": "nwoZHvan8fHf2zec",
+  "tags": []
+}
