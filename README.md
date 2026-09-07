@@ -6,7 +6,6 @@ Every 30 minutes, the workflow checks Gmail for new messages matching the config
 
 ## Workflow
 
-![n8n Multi-Label Gmail Automation Workflow](n8n_automation_workflow.png)
 
 ## Diagram Flowchart
 
